@@ -1,0 +1,71 @@
+// Ось X
+.xAxis path,
+.xAxis .tick line {
+  display: none;
+}
+
+.xAxis .tick text {
+  fill: gray;
+  font-weight: 600;
+  fill-opacity: 0.8;
+}
+// ----- Ось X
+
+// Ось Y
+.yAxis path {
+  display: none;
+}
+
+//Линии
+.yAxis .tick line {
+  stroke-opacity: 0.06;
+}
+
+//Текст
+.yAxis {
+  fill-opacity: 0.2;
+  font-weight: 600;
+  fill: gray;
+}
+// -----------  Ось Y
+
+.textYAxis {
+  text-anchor: start; //Выравнивание значений по началу слова
+}
+
+//Числа над диаграммой
+.barContainer .barDataValue {
+  font-weight: 600;
+  fill: gray;
+  text-anchor: middle;
+}
+
+//Заголовок
+.title {
+  font-weight: 600;
+  text-anchor: start;
+}
+
+.remove {
+  display: none;
+}
+
+//Название оси Y
+.labelY {
+  text-anchor: start;
+}
+
+.axis path,
+.axis line {
+  fill: none;
+  stroke: #333;
+}
+
+.axis .grid-line {
+  stroke: #000;
+  stroke-opacity: 0.2;
+}
+
+.axis text {
+  font: 10px Arial;
+}

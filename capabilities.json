@@ -1,0 +1,130 @@
+{
+    "dataRoles": [
+        {
+            "displayName": "Category Data",
+            "name": "category",
+            "kind": "Grouping"
+        },
+        {
+            "displayName": "Measure Data",
+            "name": "measure",
+            "kind": "Measure"
+        }
+    ],
+    "objects": {
+        "title":{
+            "displayName": "Title",
+            "properties": {
+                "text": {
+                    "displayName": "Text",
+                    "type": {
+                        "text": true
+                    }
+                },
+                "hide": {
+                    "displayName": "Hide",
+                    "type": {
+                        "bool": true
+                    }
+                }
+            }
+        },
+        "enableAxisX": {
+            "displayName": "Axis X",
+            "properties": {
+                "show": {
+                    "displayName": "Enable AxisX",
+                    "type": {
+                        "bool": true
+                    }
+                }
+            }
+        },
+        "enableAxisY": {
+            "displayName": "Axis Y",
+            "properties": {
+                "show": {
+                    "displayName": "Enable AxisY",
+                    "type": {
+                        "bool": true
+                    }
+                },
+                "label": {
+                    "displayName": "Enable label",
+                    "type": {
+                        "bool": true
+                    }
+                }
+            }
+        },
+        "colorSelector": {
+            "displayName": "Data Colors",
+            "properties": {
+                "fill": {
+                    "displayName": "Color",
+                    "type": {
+                        "fill": {
+                            "solid": {
+                                "color": true
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "generalView": {
+            "displayName": "General View",
+            "properties": {
+                "opacity": {
+                    "displayName": "Bars Opacity",
+                    "type": {
+                        "integer": true
+                    }
+                },
+                "dataOnBar": {
+                    "displayName": "Enable data on bar",
+                    "type": {
+                        "bool": true
+                    }
+                },
+                "enableGradient": {
+                    "displayName": "Enable gradient",
+                    "type": {
+                        "bool": true
+                    }
+                }
+            }
+        }
+    },
+    "dataViewMappings": [
+        {
+            "categorical": {
+                "categories": {
+                    "for": {
+                        "in": "category"
+                    },
+                    "dataReductionAlgorithm": {
+                        "top": {}
+                    }
+                },
+                "values": {
+                    "select": [
+                        {
+                            "bind": {
+                                "to": "measure"
+                            }
+                        }
+                    ]
+                }
+            }
+        }
+    ],
+    "drilldown": {
+        "roles": [
+            "category"
+        ]
+    },
+    "sorting": {
+        "default": {}
+    }
+}

@@ -1,0 +1,25 @@
+{
+    "visual": {
+        "name": "chart",
+        "displayName": "Chart",
+        "guid": "chartE1B5F261B18C4EB9ADBCD2382FFC1DDC",
+        "visualClassName": "BarChart",
+        "version": "1.0.0",
+        "description": "",
+        "supportUrl": "",
+        "gitHubUrl": ""
+    },
+    "apiVersion": "3.8.0",
+    "author": {
+        "name": "",
+        "email": ""
+    },
+    "assets": {
+        "icon": "assets/icon.png"
+    },
+    "externalJS": [],
+    "style": "style/visual.less",
+    "capabilities": "capabilities.json",
+    "dependencies": null,
+    "stringResources": []
+}
