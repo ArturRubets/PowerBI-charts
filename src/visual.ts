@@ -25,14 +25,19 @@ import { dataViewObjects, dataViewWildcard } from "powerbi-visuals-utils-datavie
 import * as d3 from "d3";
 
 const getEvent = () => require("d3-selection").event;
+interface data {
+    value: powerbi.PrimitiveValue;
+    category: powerbi.PrimitiveValue;
+    selectionId: ISelectionId;
+    color: string;
+}
 
 interface BarChartDataPoint {
-    value: powerbi.PrimitiveValue[];
-    category: powerbi.PrimitiveValue[];
+    data: data[]
     color: string;
     selectionId: ISelectionId;
-    categoryDisplayName:string,
-    measureDisplayName:string
+    categoryDisplayName: string,
+    measureDisplayName: string
 }
 
 
@@ -48,7 +53,7 @@ let defaultSettings: BarChartSettings = {
     },
     enableAxisY: {
         show: true,
-        label: false
+        label: true
     },
     generalView: {
         opacity: 100,
@@ -57,7 +62,7 @@ let defaultSettings: BarChartSettings = {
     },
     title: {
         hide: false,
-        text: "Analyze"
+        text: "Sales Forecast"
     }
 };
 
@@ -116,41 +121,42 @@ function visualTransform(options: VisualUpdateOptions, host: IVisualHost): BarCh
 
     dataMax = Math.max(...dataValue.map(v => <number>v.max || <number>v.maxLocal))
 
-    
+
     const defaultColor = {
         solid: {
             blue: "#5065B6",
         }
     };
 
-    console.log(dataValue);
-    
     for (let i = 0, len = dataValue.length; i < len; i++) {
-        //let object = category.objects != undefined ? category.objects[i] : null
-        
         //Фильтрую массив столбцов только меры. И перебирая все меры в них находится обьект с значениям цвета
-        const color: string = dataViewObjects.getValue<powerbi.Fill>(dataViews[0].metadata.columns.filter(v => v.roles.measure === true)[i].objects, { objectName: "colorSelector", propertyName: "fill" }, { solid: { color:  defaultColor.solid.blue } }).solid.color;
+        const color: string = dataViewObjects.getValue<powerbi.Fill>(dataViews[0].metadata.columns.filter(v => v.roles.measure === true)[i].objects, { objectName: "colorSelector", propertyName: "fill" }, { solid: { color: defaultColor.solid.blue } }).solid.color;
 
-        console.log(dataValue[i].identity);
-        
         const selectionId: ISelectionId = host.createSelectionIdBuilder()
             .withMeasure(dataValue[i].source.queryName)
-            // .withCategory(category, i)
             .createSelectionId();
+
+        let data: { color: string, value: powerbi.PrimitiveValue, category: powerbi.PrimitiveValue, selectionId: ISelectionId }[] = [];
+        for (let y = 0; y < category.values.length; y++) {
+            data.push({
+                category: category.values[y],
+                value: dataValue[i].values[y],
+                selectionId: host.createSelectionIdBuilder()
+                    .withCategory(category, y)
+                    .withMeasure(dataValue[i].source.queryName)
+                    .createSelectionId(),
+                color: color
+            });
+        }
 
         barChartDataPoints.push({
             color: color,
             selectionId,
-            value: dataValue[i].values,
-            category:  category.values,
+            data: data,
             measureDisplayName: dataValue[i].source.displayName,
             categoryDisplayName: categorical.categories[0].source.displayName
         });
     }
-
-    // let measureDisplayName = dataValue.source.displayName;
-    // let categoryDisplayName = categorical.categories[0].source.displayName;
-
 
     return {
         dataPoints: barChartDataPoints,
@@ -161,7 +167,7 @@ function visualTransform(options: VisualUpdateOptions, host: IVisualHost): BarCh
 
 export class BarChart implements IVisual {
     private svg: Selection<any>;
-    private barContainer: Selection<SVGElement>;
+    private barContainer: d3.Selection<d3.BaseType, any, d3.BaseType, any>;
     private host: IVisualHost;
     private element: HTMLElement;
     private selectionManager: ISelectionManager;
@@ -174,12 +180,13 @@ export class BarChart implements IVisual {
     private barSelection: d3.Selection<d3.BaseType, any, d3.BaseType, any>;
     private dataBarSelection: d3.Selection<d3.BaseType, any, d3.BaseType, any>;
 
+    private dots: any[] = []
     private gradientBarSelection: d3.Selection<d3.BaseType, any, d3.BaseType, any>;
     static Config = {
         solidOpacity: 1,
         transparentOpacity: 0.4,
-        xAxisFontMultiplier: 0.042,
-        yAxisFontMultiplier: 0.039,
+        xAxisFontMultiplier: 0.035,
+        yAxisFontMultiplier: 0.035,
         titleFontMultiplier: 0.05,
         dataOnBarFontMultiplier: 0.042,
     };
@@ -190,7 +197,7 @@ export class BarChart implements IVisual {
         this.element = options.element;
         this.selectionManager = options.host.createSelectionManager();
         this.selectionManager.registerOnSelectCallback(() => {
-            this.syncSelectionState(this.barSelection, <ISelectionId[]>this.selectionManager.getSelectionIds(), []);
+            this.syncSelectionState(this.barContainer, <ISelectionId[]>this.selectionManager.getSelectionIds(), [], null, null, 0, null);
         });
 
         this.svg = d3Select(options.element)
@@ -218,30 +225,28 @@ export class BarChart implements IVisual {
     public update(options: VisualUpdateOptions) {
 
         let viewModel: BarChartViewModel = visualTransform(options, this.host);
-        console.log(viewModel);
+        //console.log(viewModel);
 
         let settings = this.barChartSettings = viewModel.settings;
         this.barDataPoints = viewModel.dataPoints;
         let width = options.viewport.width;
         let height = options.viewport.height;
 
-        console.log(viewModel);
-        
         this.svg.attr("width", width).attr("height", height);
 
-        let paddingTop = height * 0.16
+        let paddingTop = height * 0.12
         let paddingBottom = height * 0.12
-        let paddingLeft = width * 0.045
+        let paddingLeft = width * 0.035
         let paddingRight = paddingLeft
 
-        let marginFirstBar = paddingLeft
+        let marginFirstBar = 0
         let marginAxisY = height * 0.035
 
 
         let fontSizeAxisX = Math.min(height, width) * BarChart.Config.xAxisFontMultiplier;
         let fontSizeAxisY = Math.min(height, width) * BarChart.Config.yAxisFontMultiplier;
         let fontSizeTitle = Math.min(height, width) * BarChart.Config.titleFontMultiplier;
-        let fontSizeDataOnBar = Math.min(height, width) * BarChart.Config.dataOnBarFontMultiplier;
+        let fontSizeLabelY = fontSizeAxisY / 1.2
 
         this.svg.selectAll('text.title').remove()
         if (!settings.title.hide) {
@@ -274,13 +279,12 @@ export class BarChart implements IVisual {
         let widthXAxis = width - paddingLeft - paddingRight
 
 
-        //Смещение диаграм
-        this.barContainer.attr('transform', `translate(${paddingLeft}, ${paddingTop})`);
+        //Смещение графиков
+        this.barContainer.attr('transform', `translate(${paddingLeft * 1.5}, ${paddingTop})`);
         //Смещение оси x
         this.xAxis.attr('transform', `translate(${paddingLeft}, ${heightYAxis + paddingTop})`);
         //Смещение оси y
         this.yAxis.attr('transform', `translate(${paddingLeft}, ${paddingTop})`)
-
 
 
         //функция интерполяции оси Y
@@ -289,9 +293,9 @@ export class BarChart implements IVisual {
             .range([0, heightYAxis - marginAxisY]);
         //функция интерполяции оси X
         let xScale = scaleBand()
-            .domain(viewModel.dataPoints[0].category.map(d => <string>d))   //Возможно ошибка
+            .domain(viewModel.dataPoints[0].data.map(d => <string>d.category))
             .rangeRound([marginFirstBar, widthXAxis])
-            .padding(0.6);
+            .padding(0.7);
 
         //создаем оси
         let xAxis = axisBottom(xScale);
@@ -314,8 +318,9 @@ export class BarChart implements IVisual {
                 .append('text')
                 .classed('labelY', true)
                 .attr('x', -9)  // значения на оси x имеют атрибут x = -9
-                .attr('y', -fontSizeAxisY * 1.5)
-                //.text(viewModel.measureDisplayName)
+                .attr('y', -fontSizeAxisY * 2.5)
+                .attr('font-size', fontSizeLabelY)
+                .text('Units')
         }
 
         // рисуем горизонтальные линии 
@@ -359,10 +364,11 @@ export class BarChart implements IVisual {
             .attr("offset", "0%")   //Начать с этого цвета 
             .attr("stop-color", (dataPoint: BarChartDataPoint) => dataPoint.color)
 
+
         if (settings.generalView.enableGradient) {
             gradientBarSelectionMerged
                 .append('stop')
-                .attr("offset", "100%") //Закончить этим цветом
+                .attr("offset", "95%") //Закончить этим цветом
                 .attr("stop-color", "white")
         }
 
@@ -372,155 +378,219 @@ export class BarChart implements IVisual {
 
 
         //-------- Создание диаграммы
-
-        this.barSelection = this.barContainer
-            .selectAll('.bar')
-            .data(this.barDataPoints);
-
-        const barSelectionMerged = this.barSelection
-            .enter()
-            .append('rect')
-            .classed('bar', true)
-            .merge(<any>this.barSelection)
-
-
-        barSelectionMerged
-            .attr('rx', 7)
-            .attr("width", xScale.bandwidth())
-            .attr("height", d => heightYAxis - marginAxisY - yScale(<number>d.value))
-            .attr("y", d => yScale(<number>d.value))
-            .attr("x", d => xScale(d.category))
-            .attr("fill", (dataPoint: BarChartDataPoint, i: number) => `url(#Gradient${i + 1})`)
-            .style("fill-opacity", opacity)
-            .style("stroke-opacity", opacity)
+        this.barContainer.selectAll(".axis").remove();
+        viewModel.dataPoints.forEach((d, i) =>
+            this.createChart(d, i + 1, xScale, yScale, this.barContainer)
+        );
 
         //------------------  Создание диаграммы
 
 
-        // let dataBarSelectionMerged;
-        // //------ Добавление числа над диаграммой
-        // if (settings.generalView.dataOnBar) {
-        //     this.dataBarSelection = this.barContainer
-        //         .selectAll('.barDataValue')
-        //         .data(this.barDataPoints);
+        this.dots.forEach((d, i) =>
+            d.on('click', (d) => {
+                // Allow selection only if the visual is rendered in a view that supports interactivity (e.g. Report)
+                if (this.host.hostCapabilities.allowInteractions) {
+                    const isCtrlPressed: boolean = (<MouseEvent>getEvent()).ctrlKey;
+                    this.selectionManager
+                        .select(d.selectionId, isCtrlPressed)
+                        .then((ids: ISelectionId[]) => {
+                            this.syncSelectionState(this.barContainer.selectAll('g'), ids,
+                                [this.xAxis.selectAll('g.tick text')],
+                                xScale,
+                                yScale,
+                                heightYAxis,
+                                this.barContainer);
+                        });
+                    (<Event>getEvent()).stopPropagation();
+                }
+            })
+        );
+
+        this.dots.forEach((d, i) =>
+            d.on('mouseover', (dotOver: data) => {
+                if (this.host.hostCapabilities.allowInteractions) {
+
+                    let indexChart, indexDot;
+                    viewModel.dataPoints.forEach((chart, i) => {
+                        if (chart.selectionId.includes(dotOver.selectionId)) {
+                            indexChart = i
+                            chart.data.forEach((dot, i) => {
+                                if (dot.selectionId.equals(dotOver.selectionId)) {
+                                    indexDot = i
+                                }
+                            })
+                        }
+                    })
+
+                    let findChart = this.barContainer.selectAll('.axis')
+                        .filter((d, i) => i === indexChart)
+
+                    let findDot = findChart
+                        .selectAll('circle')
+                        .filter((d, i) => i === indexDot)
 
 
-        //     dataBarSelectionMerged = this.dataBarSelection
-        //         .enter()
-        //         .append('text')
-        //         .classed('barDataValue', true)
-        //         .merge(<any>this.dataBarSelection);
+                    let widthTooltip = xScale.bandwidth() * 2
+                    let heightTooltip = fontSizeAxisY * 3
+                    let coordinateX = parseInt(findDot.attr('cx')) - widthTooltip / 2
+                    let coordinateY = parseInt(findDot.attr('cy')) - heightTooltip - fontSizeAxisY / 2
+
+                    let fontSizeLabel = fontSizeLabelY
+                    let fontSizeValue = fontSizeAxisY
+
+                    let tooltip = this.barContainer.append('g')
+                        .classed('tooltip', true)
+
+                    tooltip.append('rect')
+                        .attr('x', coordinateX)
+                        .attr('y', coordinateY)
+                        .attr('width', widthTooltip)
+                        .attr('height', heightTooltip)
+                        .attr('rx', 7)
+                        .style('fill', 'white')
+
+                    let lable =
+                        tooltip.append('text')
+                            .classed('yAxis', true)
+                            .attr('x', coordinateX + widthTooltip / 2)
+                            .attr('y', coordinateY + heightTooltip / 2.5)
+                            .attr('font-size', fontSizeLabel)
+                            .attr('text-anchor', 'middle')
+                            .text('Sales')
 
 
-        //     dataBarSelectionMerged
-        //         .text((d: BarChartDataPoint) => Math.round(<number>d.value))
-        //         .attr("y", (d: BarChartDataPoint) => yScale(<number>d.value) - fontSizeDataOnBar / 2)
-        //         .attr("x", (d: BarChartDataPoint) => xScale(d.category) + xScale.bandwidth() / 2)
-        //         .style('font-size', fontSizeDataOnBar)
-        // } else {
-        //     this.barContainer.selectAll('text').remove()
-        // }
+                    let value =
+                        tooltip.append('text')
+                            .style('fill-opacity', 0.8)
+                            .style('font-weight', 600)
+                            .attr('x', coordinateX + widthTooltip / 2)
+                            .attr('y', coordinateY + heightTooltip / 1.3)
+                            .attr('font-size', fontSizeValue)
+                            .attr('text-anchor', 'middle')
+                            .text(dotOver.value.toString())
+                            .style('fill', dotOver.color)
 
-        //------------------  Добавление числа над диаграммой
+                    let coordinateXTriangle = coordinateX + widthTooltip / 2.5
+                    let coordinateYTriangle = coordinateY + heightTooltip * 0.99
+                    let width = widthTooltip / 5
+                    let height = heightTooltip / 7
+                    let triangle = tooltip
+                        .append('polygon')
+                        .attr('points',
+                            `${coordinateXTriangle},${coordinateYTriangle} ${coordinateXTriangle + width / 2},${coordinateYTriangle + height} ${coordinateXTriangle + width},${coordinateYTriangle}`
+                        )
+                        .style('fill', 'white')
+                }
+            })
+        );
 
 
-
-        // barSelectionMerged.on('click', (d) => {
-        //     // Allow selection only if the visual is rendered in a view that supports interactivity (e.g. Report)
-        //     if (this.host.hostCapabilities.allowInteractions) {
-        //         const isCtrlPressed: boolean = (<MouseEvent>getEvent()).ctrlKey;
-        //         this.selectionManager
-        //             .select(d.selectionId, isCtrlPressed)
-        //             .then((ids: ISelectionId[]) => {
-        //                 this.syncSelectionState(barSelectionMerged, ids,
-        //                     [dataBarSelectionMerged, this.xAxis.selectAll('g.tick text')]);
-        //             });
-        //         (<Event>getEvent()).stopPropagation();
-        //     }
-        // });
-
+        this.dots.forEach((d, i) =>
+            d.on('mouseout', (dotOver: BarChartDataPoint) => {
+                this.barContainer.selectAll('.tooltip').remove()
+            })
+        );
 
         this.barSelection.exit().remove();
         this.dataBarSelection.exit().remove();
         this.gradientBarSelection.exit().remove();
-
-
-        // this.createChart(this.barDataPoints, "#FF7F0E", "euro", xScale, yScale, this.barContainer);
     }
 
-    // private createChart(data, colorStroke, label, xScale: d3.ScaleBand<string>,
-    //     yScale: d3.ScaleLinear<number, number, never>, barContainer:Selection<SVGElement, SVGElement>) {
-
-    //     // функция, создающая по массиву точек линии
-    //     var line = d3.line<BarChartDataPoint>()
-    //         .x((d) => xScale(d.category))
-    //         .y((d) => yScale(<number>d.value));
+    private createChart(data: BarChartDataPoint, index: number, xScale: d3.ScaleBand<string>,
+        yScale: d3.ScaleLinear<number, number, never>, barContainer: d3.Selection<d3.BaseType, any, d3.BaseType, any>) {
 
 
+        // функция, создающая по массиву точек линии
+        var line = d3.line<{ category: string, value: number }>()
+            .x((d) => xScale(d.category))
+            .y((d) => yScale(d.value))
+            .curve(d3.curveCardinal);
 
-    //     var g = barContainer.append("g").attr("class", "axis");
-        
-    //     g.append("path")
-    //         .attr("d", line(data))
-    //         .style("stroke", colorStroke)
-    //         .style("stroke-width", 2);
+        var g = barContainer.append("g")
+            .attr("class", "axis")
 
-    //     // добавляем отметки к точкам
-    //     barContainer.selectAll(".dot " + label)
-    //         .data(data)
-    //         .enter().append("circle")
-    //         .style("stroke", colorStroke)
-    //         .style("fill", "white")
-    //         .attr("class", "dot " + label)
-    //         .attr("r", 3.5)
-    //         .attr("cx", (d:BarChartDataPoint) => xScale(d.category))
-    //         .attr("cy", (d:BarChartDataPoint) => yScale(<number>d.value));
-    // };
+
+        let dataTransform = data.data.map(d => ({ category: <string>d.category, value: <number>d.value }))
+        g.append("path")
+            .attr("d", line(dataTransform))
+            .style("stroke", data.color)
+            .style("stroke-width", 3.5);
+
+        // добавляем отметки к точкам
+        let dot = g.selectAll(".dot")
+            .data(data.data)
+            .enter().append("circle")
+            .style("stroke", "white")
+            .style("stroke-width", 3.5)
+            .style("fill", data.color)
+            .attr("r", 7)
+            .attr("cx", (d) => xScale(<string>d.category))
+            .attr("cy", (d) => yScale(<number>d.value));
+
+        this.dots.push(dot)
+    };
 
 
     private syncSelectionState(
         selection: Selection<BarChartDataPoint>,
         selectionIds: ISelectionId[],
-        additionalElements: Selection<any>[]
+        additionalElements: Selection<any>[],
+        xScale: d3.ScaleBand<string>,
+        yScale: d3.ScaleLinear<number, number, never>,
+        heightYAxis: number,
+        barContainer: d3.Selection<d3.BaseType, any, d3.BaseType, any>
     ): void {
         if (!selection || !selectionIds) {
             return;
         }
 
-        if (!selectionIds.length) {
-            const opacity: number = this.barChartSettings.generalView.opacity / 100;
-            selection
-                .style("fill-opacity", opacity)
-                .style("stroke-opacity", opacity);
+        //Сразу ось Х имеет прозрачность
+        additionalElements.forEach(e =>
+            e.style("fill-opacity", BarChart.Config.transparentOpacity)
+                .style("stroke-opacity", BarChart.Config.transparentOpacity)
+        )
 
+        barContainer.selectAll('rect.selected').remove()
+
+        //Если не выбран элемент то все без прозрачности
+        if (!selectionIds.length) {
             additionalElements.forEach(e =>
-                e.style("fill-opacity", opacity)
-                    .style("stroke-opacity", opacity)
+                e.style("fill-opacity", BarChart.Config.solidOpacity)
+                    .style("stroke-opacity", BarChart.Config.solidOpacity)
             )
             return;
         }
+        else {
+            const self: this = this;
+            selection.each(function (groupDataPoint, indexGroup: number) {
+                let group = d3Select(this)
+                let circles: Selection<data> = group.selectAll('circle')
 
-        const self: this = this;
+                circles.each(function (barDataPoint, indexDot: number) {
+                    const isSelected: boolean = self.isSelectionIdInArray(selectionIds, barDataPoint.selectionId);
 
+                    if (isSelected) {
+                        let sizeCircle = parseInt(d3Select(this).attr('r'))
 
-        selection.each(function (barDataPoint: BarChartDataPoint, index: number) {
-            const isSelected: boolean = self.isSelectionIdInArray(selectionIds, barDataPoint.selectionId);
+                        barContainer.insert('rect', 'g')
+                            .classed('selected', true)
+                            .attr('rx', 20)
+                            .attr("width", xScale.bandwidth())
+                            .attr("height", heightYAxis - yScale(<number>barDataPoint.value))
+                            .attr("y", yScale(<number>barDataPoint.value) - sizeCircle * 2.5)
+                            .attr("x", xScale(<string>barDataPoint.category) - xScale.bandwidth() / 2)
+                            .attr("fill", `url(#Gradient${indexGroup + 1})`)
+                            .style("fill-opacity", 0.2)
 
-            const opacity: number = isSelected
-                ? BarChart.Config.solidOpacity
-                : BarChart.Config.transparentOpacity;
-
-
-            d3Select(this)
-                .style("fill-opacity", opacity)
-                .style("stroke-opacity", opacity);
-
-            additionalElements.forEach(e =>
-                e.filter((d, i) => i === index)
-                    .style("fill-opacity", opacity)
-                    .style("stroke-opacity", opacity)
-            )
-        });
+                        additionalElements.forEach(e =>
+                            e.filter((d, i) => i === indexDot)
+                                .style("fill-opacity", BarChart.Config.solidOpacity)
+                                .style("stroke-opacity", BarChart.Config.solidOpacity)
+                        )
+                    }
+                })
+            });
+        }
     }
 
     private isSelectionIdInArray(selectionIds: ISelectionId[], selectionId: ISelectionId): boolean {
@@ -529,14 +599,14 @@ export class BarChart implements IVisual {
         }
 
         return selectionIds.some((currentSelectionId: ISelectionId) => {
-            return currentSelectionId.includes(selectionId);
+            return currentSelectionId.equals(selectionId);
         });
     }
 
     public enumerateObjectInstances(options: EnumerateVisualObjectInstancesOptions): powerbi.VisualObjectInstanceEnumeration {
         let objectName = options.objectName;
         let objectEnumeration: VisualObjectInstance[] = [];
-        
+
         if (!this.barChartSettings ||
             !this.barChartSettings.enableAxisX ||
             !this.barChartSettings.enableAxisY ||
@@ -575,8 +645,7 @@ export class BarChart implements IVisual {
                 });
                 break;
             case 'colorSelector':
-                console.log(this.barDataPoints[0].measureDisplayName);
-                
+
                 for (let barDataPoint of this.barDataPoints) {
                     objectEnumeration.push({
                         objectName: objectName,
