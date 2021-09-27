@@ -26,6 +26,12 @@
                     "type": {
                         "bool": true
                     }
+                },
+                "fontSizeTitle": {
+                    "displayName": "Font size title",
+                    "type": {
+                        "numeric": true
+                    }
                 }
             }
         },
@@ -36,6 +42,12 @@
                     "displayName": "Enable AxisX",
                     "type": {
                         "bool": true
+                    }
+                },
+                "fontSize": {
+                    "displayName": "Font size",
+                    "type": {
+                        "numeric": true
                     }
                 }
             }
@@ -53,6 +65,24 @@
                     "displayName": "Enable label",
                     "type": {
                         "bool": true
+                    }
+                },
+                "fontSize": {
+                    "displayName": "Font size",
+                    "type": {
+                        "numeric": true
+                    }
+                },
+                "fontSizeLabel": {
+                    "displayName": "Font size label",
+                    "type": {
+                        "numeric": true
+                    }
+                },
+                "labelText":{
+                    "displayName": "Label text",
+                    "type":{
+                        "text": true
                     }
                 }
             }
@@ -78,7 +108,7 @@
                 "opacity": {
                     "displayName": "Bars Opacity",
                     "type": {
-                        "integer": true
+                        "numeric": true
                     }
                 },
                 "dataOnBar": {
@@ -91,6 +121,23 @@
                     "displayName": "Enable gradient",
                     "type": {
                         "bool": true
+                    }
+                }
+            }
+        },
+        "tooltip":{
+            "displayName": "Tooltip",
+            "properties": {
+                "fontSizeLabel": {
+                    "displayName": "Font size label",
+                    "type": {
+                        "numeric": true
+                    }
+                },
+                "fontSizeValue": {
+                    "displayName": "Font size value",
+                    "type": {
+                        "numeric": true
                     }
                 }
             }
