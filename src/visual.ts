@@ -31,7 +31,10 @@ interface data {
     selectionId: ISelectionId;
     color: string;
     id: string,
-    idChart: string
+    idChart: string;
+    sizeCircle: number;
+    coordinateX?: number;
+    coordinateY?: number;
 }
 
 interface BarChartDataPoint {
@@ -164,7 +167,7 @@ function visualTransform(options: VisualUpdateOptions, host: IVisualHost): BarCh
             .withMeasure(dataValue[i].source.queryName)
             .createSelectionId();
 
-        let data: { idChart: string, id: string, color: string, value: powerbi.PrimitiveValue, category: powerbi.PrimitiveValue, selectionId: ISelectionId }[] = [];
+        let data: {sizeCircle:number, idChart: string, id: string, color: string, value: powerbi.PrimitiveValue, category: powerbi.PrimitiveValue, selectionId: ISelectionId }[] = [];
         for (let y = 0; y < category.values.length; y++) {
             data.push({
                 category: category.values[y],
@@ -175,7 +178,8 @@ function visualTransform(options: VisualUpdateOptions, host: IVisualHost): BarCh
                     .createSelectionId(),
                 color: color,
                 id: (category.values[y] + '_' + y).replace(/ /g, ''),
-                idChart: (i + 1).toString()
+                idChart: (i + 1).toString(),
+                sizeCircle: 7
             });
         }
 
@@ -417,88 +421,89 @@ export class BarChart implements IVisual {
         //------------------  Создание диаграммы
 
 
-        this.removeRectTooltip()
-        this.removetooltip()
+        if (this.isClicked()) {
+
+            let rects = this.barContainer.selectAll('rect.clicked')
+
+            
+
+            console.log(rects.attr('id'));
+            
+            
+            
+            // rects.each((d:data, i) => {
+
+            //     if (this.host.hostCapabilities.allowInteractions) {
+
+            //         this.createTooltip(viewModel, d, xScale, fontSizeAxisY, fontSizeLabelY,
+            //             settings)
+            //         this.createRectTooltip(d, xScale, yScale, heightYAxis)
+
+            //     }
+
+            // })
+        }
 
         this.dots.forEach((d, i) =>
             d.on('click', (d) => {
-                // Allow selection only if the visual is rendered in a view that supports interactivity (e.g. Report)
                 if (this.host.hostCapabilities.allowInteractions) {
-                    const isCtrlPressed: boolean = (<MouseEvent>getEvent()).ctrlKey;
-                    this.selectionManager
-                        .select(d.selectionId, isCtrlPressed)
-                        .then((ids: ISelectionId[]) => {
-                            this.syncSelectionState(this.barContainer.selectAll('g'), ids,
-                                [this.xAxis.selectAll('g.tick text')],
-                                xScale,
-                                yScale,
-                                heightYAxis,
-                                this.barContainer,
-                                {
-                                    viewModel,
-                                    fontSizeAxisY,
-                                    fontSizeLabelY,
-                                    settings
-                                });
-                        });
-                    (<Event>getEvent()).stopPropagation();
-                }
-            })
-        );
-
-
-        this.dots.forEach((d, i) =>
-            d.on('mouseover', (dotOver: data) => {
-                if (this.host.hostCapabilities.allowInteractions) {
-                    if (this.barContainer.selectAll('rect.selected').size() === 0) {
-                        this.createTooltip(viewModel, dotOver, xScale, fontSizeAxisY, fontSizeLabelY,
-                            settings)
-                        this.createRectTooltip(dotOver, xScale, yScale, heightYAxis)
-                    }
-                }
-            })
-        );
-
-
-        this.dots.forEach((d, i) =>
-            d.on('mouseout', (dotOver: BarChartDataPoint) => {
-                // if (this.barContainer.selectAll('rect.selected').size() === 0) {
-                //     this.removetooltip()
-                //     this.removeRectTooltip()
-                // }
-                const isCtrlPressed: boolean = (<MouseEvent>getEvent()).ctrlKey;
-                this.selectionManager
-                    .select(dotOver.selectionId, isCtrlPressed)
-                    .then((ids: ISelectionId[]) => {
-                        debugger
-                        if (!ids) {
-                            return;
-                        }
-                        if (!ids.length) {
-                            this.removetooltip()
-                            this.removeRectTooltip()
-                        }
-                    })
-
-                
-
+                    // const isCtrlPressed: boolean = (<MouseEvent>getEvent()).ctrlKey;
+                    // this.selectionManager
+                    //     .select(d.selectionId, isCtrlPressed)
+                    //     .then((ids: ISelectionId[]) => {
+                    //         this.syncSelectionState(this.barContainer.selectAll('g'), ids,
+                    //             [this.xAxis.selectAll('g.tick text')],
+                    //             xScale,
+                    //             yScale,
+                    //             heightYAxis,
+                    //             this.barContainer,
+                    //             {
+                    //                 viewModel,
+                    //                 fontSizeAxisY,
+                    //                 fontSizeLabelY,
+                    //                 settings
+                    //             });
+                    //     });
                     // (<Event>getEvent()).stopPropagation();
 
-                // this.barContainer.select('#Week1_0').onclick
-                // this.dots.forEach(d => {
-                //         console.log(d); d.onclick
-
-                //     })
-
-    
+                    this.createRectTooltip(d, xScale, yScale, heightYAxis)
+                }
             })
         );
+
+
+        // this.dots.forEach((d, i) =>
+        //     d.on('mouseover', (dotOver: data) => {
+        //         if (this.host.hostCapabilities.allowInteractions) {
+        //             if (!this.isClicked()) {
+        //                 this.createTooltip(viewModel, dotOver, xScale, fontSizeAxisY, fontSizeLabelY,
+        //                     settings)
+        //                 this.createRectTooltip(dotOver, xScale, yScale, heightYAxis)
+        //             }
+        //         }
+        //     })
+        // );
+
+
+        // this.dots.forEach((d, i) =>
+        //     d.on('mouseout', (dotOver: BarChartDataPoint) => {
+        //         if (!this.isClicked()) {
+        //             this.removetooltip()
+        //             this.removeRectTooltip()
+        //         }
+        //     })
+        // );
 
 
         this.barSelection.exit().remove();
         this.dataBarSelection.exit().remove();
         this.gradientBarSelection.exit().remove();
 
+    }
+
+
+    private isClicked() {
+        return this.barContainer.selectAll('rect.clicked').size()
     }
 
     private createChart(data: BarChartDataPoint, index: number, xScale: d3.ScaleBand<string>,
@@ -528,9 +533,9 @@ export class BarChart implements IVisual {
             .style("stroke-width", 3.5)
             .style("fill", data.color)
             .attr('id', d => d.id)
-            .attr("r", 7)
-            .attr("cx", (d) => xScale(<string>d.category))
-            .attr("cy", (d) => yScale(<number>d.value));
+            .attr("r", d => d.sizeCircle)
+            .attr("cx", (d) => {let x = xScale(<string>d.category); d.coordinateX = x; return  x})
+            .attr("cy", (d) => {let y = yScale(<number>d.value); d.coordinateY = y; return y});
 
         this.dots.push(dot)
     };
@@ -566,7 +571,7 @@ export class BarChart implements IVisual {
                 e.style("fill-opacity", BarChart.Config.solidOpacity)
                     .style("stroke-opacity", BarChart.Config.solidOpacity)
             )
-
+          //  this.barContainer.selectAll('.clicked').classed('clicked', false)
             return;
         }
         else {
@@ -575,12 +580,12 @@ export class BarChart implements IVisual {
                 let group = d3Select(this)
                 let circles: Selection<data> = group.selectAll('circle')
 
-
-                circles.each(function (barDataPoint, indexDot: number) {
+                let dots:data[] = []
+                circles.each(function (barDataPoint: data, indexDot: number) {
                     const isSelected: boolean = self.isSelectionIdInArray(selectionIds, barDataPoint.selectionId);
 
                     if (isSelected) {
-                        self.createRectTooltip(barDataPoint, xScale, yScale, heightYAxis)
+                        dots.push(barDataPoint)
 
                         additionalElements.forEach(e =>
                             e.filter((d, i) => i === indexDot)
@@ -590,8 +595,10 @@ export class BarChart implements IVisual {
 
 
                         self.createTooltip(paramTooltip.viewModel, barDataPoint, xScale, paramTooltip.fontSizeAxisY, paramTooltip.fontSizeLabelY, paramTooltip.settings)
+                        self.barContainer.selectAll('rect.selected').classed('clicked', true).attr("id", barDataPoint.id)
                     }
                 })
+                self.createRectTooltip(dots, xScale, yScale, heightYAxis)
             });
 
         }
@@ -599,7 +606,7 @@ export class BarChart implements IVisual {
     }
 
 
-    private createTooltip(viewModel, dotOver, xScale, fontSizeAxisY, fontSizeLabelY,
+    private createTooltip(viewModel, dotOver: data, xScale, fontSizeAxisY, fontSizeLabelY,
         settings) {
 
         let indexChart, indexDot;
@@ -678,18 +685,46 @@ export class BarChart implements IVisual {
         this.barContainer.selectAll('.tooltip').remove()
     }
 
-    private createRectTooltip(dot: data, xScale, yScale, heightYAxis) {
-        let sizeCircle = parseInt(this.barContainer.select('#' + dot.id).attr('r'))
+    private createRectTooltip(dots: data[], xScale, yScale, heightYAxis) {
+        //let sizeCircle = parseInt(this.barContainer.select('#' + dot.id).attr('r'))
 
-        this.barContainer.insert('rect', 'g')
+        // this.barContainer.insert('rect', 'g')
+        //     .classed('selected', true)
+        //     .attr('rx', 20)
+        //     .attr("width", xScale.bandwidth())
+        //     .attr("height", heightYAxis - yScale(<number>dot.value))
+        //     .attr("y", yScale(<number>dot.value) - sizeCircle * 2.5)
+        //     .attr("x", xScale(<string>dot.category) - xScale.bandwidth() / 2)
+        //     .attr("fill", `url(#Gradient${dot.idChart})`)
+        //     .style("fill-opacity", 0.2)
+
+        console.log(dots);
+        
+        this.barContainer
+            .selectAll('.selected')
+            .data(dots)
+            .enter()
+            .insert('rect', 'g')
             .classed('selected', true)
             .attr('rx', 20)
             .attr("width", xScale.bandwidth())
-            .attr("height", heightYAxis - yScale(<number>dot.value))
-            .attr("y", yScale(<number>dot.value) - sizeCircle * 2.5)
-            .attr("x", xScale(<string>dot.category) - xScale.bandwidth() / 2)
-            .attr("fill", `url(#Gradient${dot.idChart})`)
+            .attr("height", dot => heightYAxis - yScale(<number>dot.value))
+            .attr("y", dot =>  yScale(<number>dot.value) - dot.sizeCircle * 2.5)
+            .attr("x",  dot => xScale(<string>dot.category) - xScale.bandwidth() / 2)
+            .attr("fill", dot => `url(#Gradient${dot.idChart})`)
             .style("fill-opacity", 0.2)
+
+
+            // let dot = g.selectAll(".dot")
+            // .data(data.data)
+            // .enter().append("circle")
+            // .style("stroke", "white")
+            // .style("stroke-width", 3.5)
+            // .style("fill", data.color)
+            // .attr('id', d => d.id)
+            // .attr("r", 7)
+            // .attr("cx", (d) => xScale(<string>d.category))
+            // .attr("cy", (d) => yScale(<number>d.value));
     }
 
     private removeRectTooltip() {
