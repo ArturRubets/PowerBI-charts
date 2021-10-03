@@ -31,10 +31,12 @@ interface data {
     selectionId: ISelectionId;
     color: string;
     id: string,
-    idChart: string;
+    indexChart: number;
     sizeCircle: number;
     coordinateX?: number;
     coordinateY?: number;
+    isClicked?: boolean;
+    indexDot: number
 }
 
 interface BarChartDataPoint {
@@ -67,7 +69,7 @@ let defaultSettings: BarChartSettings = {
     generalView: {
         opacity: 100,
         dataOnBar: true,
-        enableGradient: true
+        sizeDots: 7
     },
     title: {
         hide: false,
@@ -76,7 +78,9 @@ let defaultSettings: BarChartSettings = {
     },
     tooltip: {
         fontSizeLabel: 12,
-        fontSizeValue: 14
+        fontSizeValue: 14,
+        labelText: "Sales",
+        enableGradient: true
     }
 };
 
@@ -137,7 +141,7 @@ function visualTransform(options: VisualUpdateOptions, host: IVisualHost): BarCh
         generalView: {
             opacity: dataViewObjects.getValue(objects, { objectName: "generalView", propertyName: "opacity" }, defaultSettings.generalView.opacity),
             dataOnBar: dataViewObjects.getValue(objects, { objectName: "generalView", propertyName: "dataOnBar" }, defaultSettings.generalView.dataOnBar),
-            enableGradient: dataViewObjects.getValue(objects, { objectName: "generalView", propertyName: "enableGradient" }, defaultSettings.generalView.enableGradient),
+            sizeDots: dataViewObjects.getValue(objects, { objectName: "generalView", propertyName: "sizeDots" }, defaultSettings.generalView.sizeDots),
         },
         title: {
             hide: dataViewObjects.getValue(objects, { objectName: "title", propertyName: "hide" }, defaultSettings.title.hide),
@@ -147,6 +151,8 @@ function visualTransform(options: VisualUpdateOptions, host: IVisualHost): BarCh
         tooltip: {
             fontSizeLabel: dataViewObjects.getValue(objects, { objectName: "tooltip", propertyName: "fontSizeLabel" }, defaultSettings.tooltip.fontSizeLabel),
             fontSizeValue: dataViewObjects.getValue(objects, { objectName: "tooltip", propertyName: "fontSizeValue" }, defaultSettings.tooltip.fontSizeValue),
+            labelText: dataViewObjects.getValue(objects, { objectName: "tooltip", propertyName: "labelText" }, defaultSettings.tooltip.labelText),
+            enableGradient: dataViewObjects.getValue(objects, { objectName: "tooltip", propertyName: "enableGradient" }, defaultSettings.tooltip.enableGradient),
         }
     };
 
@@ -167,7 +173,7 @@ function visualTransform(options: VisualUpdateOptions, host: IVisualHost): BarCh
             .withMeasure(dataValue[i].source.queryName)
             .createSelectionId();
 
-        let data: {sizeCircle:number, idChart: string, id: string, color: string, value: powerbi.PrimitiveValue, category: powerbi.PrimitiveValue, selectionId: ISelectionId }[] = [];
+        let data: { indexDot: number, sizeCircle: number, indexChart: number, id: string, color: string, value: powerbi.PrimitiveValue, category: powerbi.PrimitiveValue, selectionId: ISelectionId }[] = [];
         for (let y = 0; y < category.values.length; y++) {
             data.push({
                 category: category.values[y],
@@ -178,8 +184,9 @@ function visualTransform(options: VisualUpdateOptions, host: IVisualHost): BarCh
                     .createSelectionId(),
                 color: color,
                 id: (category.values[y] + '_' + y).replace(/ /g, ''),
-                idChart: (i + 1).toString(),
-                sizeCircle: 7
+                indexChart: i,
+                indexDot: y,
+                sizeCircle: barChartSettings.generalView.sizeDots
             });
         }
 
@@ -215,6 +222,7 @@ export class BarChart implements IVisual {
     private dataBarSelection: d3.Selection<d3.BaseType, any, d3.BaseType, any>;
 
     private dots: d3.Selection<SVGCircleElement, data, SVGGElement, any>[] = []
+
     private gradientBarSelection: d3.Selection<d3.BaseType, any, d3.BaseType, any>;
     static Config = {
         solidOpacity: 1,
@@ -231,9 +239,6 @@ export class BarChart implements IVisual {
         this.host = options.host;
         this.element = options.element;
         this.selectionManager = options.host.createSelectionManager();
-        this.selectionManager.registerOnSelectCallback(() => {
-            this.syncSelectionState(this.barContainer, <ISelectionId[]>this.selectionManager.getSelectionIds(), [], null, null, 0, null, null);
-        });
 
         this.svg = d3Select(options.element)
             .append('svg')
@@ -260,10 +265,11 @@ export class BarChart implements IVisual {
     public update(options: VisualUpdateOptions) {
 
         let viewModel: BarChartViewModel = visualTransform(options, this.host);
-        //console.log(viewModel);
 
         let settings = this.barChartSettings = viewModel.settings;
         this.barDataPoints = viewModel.dataPoints;
+
+
         let width = options.viewport.width;
         let height = options.viewport.height;
 
@@ -284,13 +290,15 @@ export class BarChart implements IVisual {
         let fontSizeLabelY = settings.enableAxisY.fontSizeLabel //fontSizeAxisY / 1.2
 
 
+
+
         this.svg.selectAll('text.title').remove()
         if (!settings.title.hide) {
             this.title = this.svg
                 .append('text')
                 .text(settings.title.text)
                 .classed('title', true)
-                .attr("transform", `translate(${paddingLeft - 9}, ${fontSizeAxisY * 2})`)
+                .attr("transform", `translate(${paddingLeft - 9}, ${paddingTop / 2})`)
                 .style('font-size', fontSizeTitle)
         }
 
@@ -370,9 +378,6 @@ export class BarChart implements IVisual {
         this.yAxis.selectAll('.tick text').classed('textYAxis', true)
 
 
-
-        const opacity: number = viewModel.settings.generalView.opacity / 100;
-
         //----- Создание градиента
 
         this.gradientBarSelection = this.defs
@@ -401,7 +406,7 @@ export class BarChart implements IVisual {
             .attr("stop-color", (dataPoint: BarChartDataPoint) => dataPoint.color)
 
 
-        if (settings.generalView.enableGradient) {
+        if (settings.tooltip.enableGradient) {
             gradientBarSelectionMerged
                 .append('stop')
                 .attr("offset", "95%") //Закончить этим цветом
@@ -415,84 +420,66 @@ export class BarChart implements IVisual {
         //-------- Создание диаграммы
         this.barContainer.selectAll(".axis").remove();
         viewModel.dataPoints.forEach((d, i) =>
-            this.createChart(d, i + 1, xScale, yScale, this.barContainer)
+            this.createChart(d, i, xScale, yScale, this.barContainer)
         );
 
         //------------------  Создание диаграммы
 
-
-        if (this.isClicked()) {
-
-            let rects = this.barContainer.selectAll('rect.clicked')
-
-            
-
-            console.log(rects.attr('id'));
-            
-            
-            
-            // rects.each((d:data, i) => {
-
-            //     if (this.host.hostCapabilities.allowInteractions) {
-
-            //         this.createTooltip(viewModel, d, xScale, fontSizeAxisY, fontSizeLabelY,
-            //             settings)
-            //         this.createRectTooltip(d, xScale, yScale, heightYAxis)
-
-            //     }
-
-            // })
-        }
+        // Перерисовка подсказки
+        this.redrawRectTooltip(xScale, yScale, heightYAxis)
+        this.redrawTooltip(viewModel, xScale, fontSizeAxisY, fontSizeLabelY, settings)
 
         this.dots.forEach((d, i) =>
-            d.on('click', (d) => {
+            d.on('click', (d: data) => {
                 if (this.host.hostCapabilities.allowInteractions) {
-                    // const isCtrlPressed: boolean = (<MouseEvent>getEvent()).ctrlKey;
-                    // this.selectionManager
-                    //     .select(d.selectionId, isCtrlPressed)
-                    //     .then((ids: ISelectionId[]) => {
-                    //         this.syncSelectionState(this.barContainer.selectAll('g'), ids,
-                    //             [this.xAxis.selectAll('g.tick text')],
-                    //             xScale,
-                    //             yScale,
-                    //             heightYAxis,
-                    //             this.barContainer,
-                    //             {
-                    //                 viewModel,
-                    //                 fontSizeAxisY,
-                    //                 fontSizeLabelY,
-                    //                 settings
-                    //             });
-                    //     });
-                    // (<Event>getEvent()).stopPropagation();
-
-                    this.createRectTooltip(d, xScale, yScale, heightYAxis)
+                    this.removeRectTooltip()
+                    this.removetooltip()
+                    this.removeHighlightAxisX()
+                    const isCtrlPressed: boolean = (<MouseEvent>getEvent()).ctrlKey;
+                    this.selectionManager
+                        .select(d.selectionId, isCtrlPressed)
+                        .then((ids: ISelectionId[]) => {
+                            if (ids.length > 0) {
+                                this.dots.forEach(d => {
+                                    d.each(dot => {
+                                        ids.forEach(id => {
+                                            if (dot.selectionId.equals(id)) {
+                                                this.createRectTooltip(dot, xScale, yScale, heightYAxis)
+                                                this.createTooltip(viewModel, dot, xScale, fontSizeAxisY, fontSizeLabelY, settings)
+                                                this.highlightAxisX()
+                                            }
+                                        })
+                                    })
+                                })
+                            }
+                        });
+                    (<Event>getEvent()).stopPropagation();
                 }
             })
         );
 
 
-        // this.dots.forEach((d, i) =>
-        //     d.on('mouseover', (dotOver: data) => {
-        //         if (this.host.hostCapabilities.allowInteractions) {
-        //             if (!this.isClicked()) {
-        //                 this.createTooltip(viewModel, dotOver, xScale, fontSizeAxisY, fontSizeLabelY,
-        //                     settings)
-        //                 this.createRectTooltip(dotOver, xScale, yScale, heightYAxis)
-        //             }
-        //         }
-        //     })
-        // );
+
+        this.dots.forEach((d, i) =>
+            d.on('mouseover', (dotOver: data) => {
+                if (this.host.hostCapabilities.allowInteractions) {
+                    if (this.getClickedDots().length === 0) {
+                        this.createRectTooltip(dotOver, xScale, yScale, heightYAxis)
+                        this.createTooltip(viewModel, dotOver, xScale, fontSizeAxisY, fontSizeLabelY, settings)
+                    }
+                }
+            })
+        );
 
 
-        // this.dots.forEach((d, i) =>
-        //     d.on('mouseout', (dotOver: BarChartDataPoint) => {
-        //         if (!this.isClicked()) {
-        //             this.removetooltip()
-        //             this.removeRectTooltip()
-        //         }
-        //     })
-        // );
+        this.dots.forEach((d, i) =>
+            d.on('mouseout', (dotOver: data) => {
+                if (this.getClickedDots().length === 0) {
+                    this.removeRectTooltip()
+                    this.removetooltip()
+                }
+            })
+        );
 
 
         this.barSelection.exit().remove();
@@ -501,10 +488,70 @@ export class BarChart implements IVisual {
 
     }
 
+    private highlightAxisX() {
+        const opacity = BarChart.Config.solidOpacity
 
-    private isClicked() {
-        return this.barContainer.selectAll('rect.clicked').size()
+        const clickedDots = this.getClickedDots()
+        
+        clickedDots.forEach(dot => {
+            this.xAxis.selectAll('text')
+                .filter((d, i) => i === dot.indexDot)
+                .classed('clicked', true)
+
+                // .style("fill-opacity", opacity)
+                // .style("stroke-opacity", opacity)
+        })  
     }
+
+    private removeHighlightAxisX() {
+        const opacity: number = this.barChartSettings.generalView.opacity / 100;
+        console.log(this.barChartSettings.generalView.opacity);
+        
+        this.xAxis
+            .selectAll('text')
+            .classed('clicked', false)
+            // .style("fill-opacity", opacity)
+            // .style("stroke-opacity", opacity);
+    }
+
+    private getClickedDots() {
+        let clickedDots: data[] = []
+        let dots = this.getDataDots()
+        this.selectionManager.getSelectionIds().forEach(function (d: ISelectionId) {
+            clickedDots.push(dots.find(f => f.selectionId.equals(d)))
+        });
+
+        return clickedDots
+    }
+
+    private getDataDots() {
+        let clickedDots: data[] = []
+        this.dots.forEach(d3Selection => d3Selection.each(data => clickedDots.push(data)))
+        return clickedDots
+    }
+
+    private redrawRectTooltip(xScale, yScale, heightYAxis) {
+        this.removeRectTooltip()
+        let clickedDots = this.getClickedDots()
+        if (clickedDots.length > 0) {
+            clickedDots.forEach(dot => {
+                this.createRectTooltip(dot, xScale, yScale, heightYAxis)
+            })
+        }
+
+    }
+
+    private redrawTooltip(viewModel, xScale, fontSizeAxisY, fontSizeLabelY, settings) {
+        this.removetooltip()
+        let clickedDots = this.getClickedDots()
+        if (clickedDots.length > 0) {
+            clickedDots.forEach(dot => {
+                this.createTooltip(viewModel, dot, xScale, fontSizeAxisY, fontSizeLabelY, settings)
+            })
+        }
+
+    }
+
 
     private createChart(data: BarChartDataPoint, index: number, xScale: d3.ScaleBand<string>,
         yScale: d3.ScaleLinear<number, number, never>, barContainer: d3.Selection<d3.BaseType, any, d3.BaseType, any>) {
@@ -526,116 +573,41 @@ export class BarChart implements IVisual {
             .style("stroke-width", 3.5);
 
         // добавляем отметки к точкам
-        let dot = g.selectAll(".dot")
+        let dots = g.selectAll(".dot")
             .data(data.data)
             .enter().append("circle")
+            .classed('clicked', d => d.isClicked)
             .style("stroke", "white")
             .style("stroke-width", 3.5)
             .style("fill", data.color)
             .attr('id', d => d.id)
             .attr("r", d => d.sizeCircle)
-            .attr("cx", (d) => {let x = xScale(<string>d.category); d.coordinateX = x; return  x})
-            .attr("cy", (d) => {let y = yScale(<number>d.value); d.coordinateY = y; return y});
+            .attr("cx", (d) => { let x = xScale(<string>d.category); d.coordinateX = x; return x })
+            .attr("cy", (d) => { let y = yScale(<number>d.value); d.coordinateY = y; return y });
 
-        this.dots.push(dot)
+
+        this.dots[index] = dots
+
+        //this.dots.push(dots)    //массив точек графика
     };
 
-
-    private syncSelectionState(
-        selection: Selection<BarChartDataPoint>,
-        selectionIds: ISelectionId[],
-        additionalElements: Selection<any>[],
-        xScale: d3.ScaleBand<string>,
-        yScale: d3.ScaleLinear<number, number, never>,
-        heightYAxis: number,
-        barContainer: d3.Selection<d3.BaseType, any, d3.BaseType, any>,
-        paramTooltip: { viewModel, fontSizeAxisY, fontSizeLabelY, settings }
-    ): void {
-        if (!selection || !selectionIds) {
-            return;
-        }
-
-        this.removeRectTooltip()
-        this.removetooltip()
-
-
-        //Сразу ось Х имеет прозрачность
-        additionalElements.forEach(e =>
-            e.style("fill-opacity", BarChart.Config.transparentOpacity)
-                .style("stroke-opacity", BarChart.Config.transparentOpacity)
-        )
-
-        //Если не выбран элемент то все без прозрачности
-        if (!selectionIds.length) {
-            additionalElements.forEach(e =>
-                e.style("fill-opacity", BarChart.Config.solidOpacity)
-                    .style("stroke-opacity", BarChart.Config.solidOpacity)
-            )
-          //  this.barContainer.selectAll('.clicked').classed('clicked', false)
-            return;
-        }
-        else {
-            const self: this = this;
-            selection.each(function (groupDataPoint, indexGroup: number) {
-                let group = d3Select(this)
-                let circles: Selection<data> = group.selectAll('circle')
-
-                let dots:data[] = []
-                circles.each(function (barDataPoint: data, indexDot: number) {
-                    const isSelected: boolean = self.isSelectionIdInArray(selectionIds, barDataPoint.selectionId);
-
-                    if (isSelected) {
-                        dots.push(barDataPoint)
-
-                        additionalElements.forEach(e =>
-                            e.filter((d, i) => i === indexDot)
-                                .style("fill-opacity", BarChart.Config.solidOpacity)
-                                .style("stroke-opacity", BarChart.Config.solidOpacity)
-                        )
-
-
-                        self.createTooltip(paramTooltip.viewModel, barDataPoint, xScale, paramTooltip.fontSizeAxisY, paramTooltip.fontSizeLabelY, paramTooltip.settings)
-                        self.barContainer.selectAll('rect.selected').classed('clicked', true).attr("id", barDataPoint.id)
-                    }
-                })
-                self.createRectTooltip(dots, xScale, yScale, heightYAxis)
-            });
-
-        }
-
-    }
 
 
     private createTooltip(viewModel, dotOver: data, xScale, fontSizeAxisY, fontSizeLabelY,
         settings) {
 
-        let indexChart, indexDot;
-        viewModel.dataPoints.forEach((chart, i) => {
-            if (chart.selectionId.includes(dotOver.selectionId)) {
-                indexChart = i
-                chart.data.forEach((dot, i) => {
-                    if (dot.selectionId.equals(dotOver.selectionId)) {
-                        indexDot = i
-                    }
-                })
-            }
-        })
-
         let findChart = this.barContainer.selectAll('.axis')
-            .filter((d, i) => i === indexChart)
+            .filter((d, i) => i === dotOver.indexChart)
 
         let findDot = findChart
             .selectAll('circle')
-            .filter((d, i) => i === indexDot)
+            .filter((d, i) => i === dotOver.indexDot)
 
-
-        let widthTooltip = xScale.bandwidth() * 2
-        let heightTooltip = fontSizeAxisY * 3
+        let widthTooltip =  Math.max(settings.tooltip.fontSizeValue, settings.tooltip.fontSizeLabel) * 5  //xScale.bandwidth() * 2
+        let heightTooltip = Math.max(settings.tooltip.fontSizeValue, settings.tooltip.fontSizeLabel) * 3
         let coordinateX = parseInt(findDot.attr('cx')) - widthTooltip / 2
-        let coordinateY = parseInt(findDot.attr('cy')) - heightTooltip - fontSizeAxisY / 2
+        let coordinateY = parseInt(findDot.attr('cy')) - heightTooltip - fontSizeAxisY * 1.5
 
-        let fontSizeLabel = fontSizeLabelY
-        let fontSizeValue = fontSizeAxisY
 
         let tooltip = this.barContainer.append('g')
             .classed('tooltip', true)
@@ -655,7 +627,7 @@ export class BarChart implements IVisual {
                 .attr('y', coordinateY + heightTooltip / 2.5)
                 .attr('font-size', settings.tooltip.fontSizeLabel)
                 .attr('text-anchor', 'middle')
-                .text('Sales')
+                .text(this.barChartSettings.tooltip.labelText)
 
 
         let value =
@@ -685,61 +657,22 @@ export class BarChart implements IVisual {
         this.barContainer.selectAll('.tooltip').remove()
     }
 
-    private createRectTooltip(dots: data[], xScale, yScale, heightYAxis) {
-        //let sizeCircle = parseInt(this.barContainer.select('#' + dot.id).attr('r'))
-
-        // this.barContainer.insert('rect', 'g')
-        //     .classed('selected', true)
-        //     .attr('rx', 20)
-        //     .attr("width", xScale.bandwidth())
-        //     .attr("height", heightYAxis - yScale(<number>dot.value))
-        //     .attr("y", yScale(<number>dot.value) - sizeCircle * 2.5)
-        //     .attr("x", xScale(<string>dot.category) - xScale.bandwidth() / 2)
-        //     .attr("fill", `url(#Gradient${dot.idChart})`)
-        //     .style("fill-opacity", 0.2)
-
-        console.log(dots);
-        
-        this.barContainer
-            .selectAll('.selected')
-            .data(dots)
-            .enter()
-            .insert('rect', 'g')
+    private createRectTooltip(dot: data, xScale, yScale, heightYAxis) {
+        this.barContainer.insert('rect', 'g')
             .classed('selected', true)
             .attr('rx', 20)
             .attr("width", xScale.bandwidth())
-            .attr("height", dot => heightYAxis - yScale(<number>dot.value))
-            .attr("y", dot =>  yScale(<number>dot.value) - dot.sizeCircle * 2.5)
-            .attr("x",  dot => xScale(<string>dot.category) - xScale.bandwidth() / 2)
-            .attr("fill", dot => `url(#Gradient${dot.idChart})`)
+            .attr("height", heightYAxis - yScale(<number>dot.value))
+            .attr("y", yScale(<number>dot.value) - dot.sizeCircle * 2.5)
+            .attr("x", xScale(<string>dot.category) - xScale.bandwidth() / 2)
+            .attr("fill", `url(#Gradient${dot.indexChart + 1})`)
             .style("fill-opacity", 0.2)
-
-
-            // let dot = g.selectAll(".dot")
-            // .data(data.data)
-            // .enter().append("circle")
-            // .style("stroke", "white")
-            // .style("stroke-width", 3.5)
-            // .style("fill", data.color)
-            // .attr('id', d => d.id)
-            // .attr("r", 7)
-            // .attr("cx", (d) => xScale(<string>d.category))
-            // .attr("cy", (d) => yScale(<number>d.value));
     }
 
     private removeRectTooltip() {
         this.barContainer.selectAll('rect.selected').remove()
     }
 
-    private isSelectionIdInArray(selectionIds: ISelectionId[], selectionId: ISelectionId): boolean {
-        if (!selectionIds || !selectionId) {
-            return false;
-        }
-
-        return selectionIds.some((currentSelectionId: ISelectionId) => {
-            return currentSelectionId.equals(selectionId);
-        });
-    }
 
     public enumerateObjectInstances(options: EnumerateVisualObjectInstancesOptions): powerbi.VisualObjectInstanceEnumeration {
         let objectName = options.objectName;
@@ -838,17 +771,7 @@ export class BarChart implements IVisual {
                 objectEnumeration.push({
                     objectName: objectName,
                     properties: {
-                        opacity: this.barChartSettings.generalView.opacity,
-                        dataOnBar: this.barChartSettings.generalView.dataOnBar,
-                        enableGradient: this.barChartSettings.generalView.enableGradient
-                    },
-                    validValues: {
-                        opacity: {
-                            numberRange: {
-                                min: 10,
-                                max: 100
-                            }
-                        }
+                        sizeDots: this.barChartSettings.generalView.sizeDots,
                     },
                     selector: null
                 });
@@ -859,6 +782,8 @@ export class BarChart implements IVisual {
                     properties: {
                         fontSizeLabel: this.barChartSettings.tooltip.fontSizeLabel,
                         fontSizeValue: this.barChartSettings.tooltip.fontSizeValue,
+                        labelText: this.barChartSettings.tooltip.labelText,
+                        enableGradient: this.barChartSettings.tooltip.enableGradient
                     },
                     validValues: {
                         fontSizeLabel: {

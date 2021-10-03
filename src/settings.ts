@@ -24,7 +24,7 @@ export class BarChartSettings {
   generalView: {
     opacity: number;
     dataOnBar:boolean;
-    enableGradient:boolean;
+    sizeDots:number;
   };
 
   title: {
@@ -36,5 +36,7 @@ export class BarChartSettings {
   tooltip:{
     fontSizeLabel:number;
     fontSizeValue:number;
+    labelText:string;
+    enableGradient:boolean;
   }
 }

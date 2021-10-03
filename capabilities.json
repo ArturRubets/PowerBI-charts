@@ -117,10 +117,10 @@
                         "bool": true
                     }
                 },
-                "enableGradient": {
-                    "displayName": "Enable gradient",
+               "sizeDots": {
+                    "displayName": "Size dots",
                     "type": {
-                        "bool": true
+                        "numeric": true
                     }
                 }
             }
@@ -138,6 +138,18 @@
                     "displayName": "Font size value",
                     "type": {
                         "numeric": true
+                    }
+                },
+                "labelText":{
+                    "displayName": "Label text",
+                    "type":{
+                        "text": true
+                    }
+                },
+                "enableGradient": {
+                    "displayName": "Enable gradient",
+                    "type": {
+                        "bool": true
                     }
                 }
             }
