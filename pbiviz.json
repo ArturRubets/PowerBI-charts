@@ -5,14 +5,14 @@
         "guid": "chartE1B5F261B18C4EB9ADBCD2382FFC1DDC",
         "visualClassName": "BarChart",
         "version": "1.0.0",
-        "description": "",
-        "supportUrl": "",
+        "description": "Custom charts",
+        "supportUrl": "https://docs.microsoft.com/ru-ru/power-bi/developer/visuals/",
         "gitHubUrl": ""
     },
     "apiVersion": "3.8.0",
     "author": {
-        "name": "",
-        "email": ""
+        "name": "Artur Rubets",
+        "email": "artue.rubets@gmail.com"
     },
     "assets": {
         "icon": "assets/icon.png"

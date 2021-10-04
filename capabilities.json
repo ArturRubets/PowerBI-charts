@@ -185,5 +185,6 @@
     },
     "sorting": {
         "default": {}
-    }
+    },
+    "supportsMultiVisualSelection": true
 }

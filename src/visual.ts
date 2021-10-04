@@ -350,6 +350,9 @@ export class BarChart implements IVisual {
         this.xAxis.style('font-size', fontSizeAxisX)
         this.yAxis.style('font-size', fontSizeAxisY)
 
+        this.removeHighlightAxisX()
+        this.highlightAxisX()
+
         //Удаление названия оси перед его добавлением
         this.yAxis
             .selectAll('text.labelY')
@@ -492,26 +495,29 @@ export class BarChart implements IVisual {
         const opacity = BarChart.Config.solidOpacity
 
         const clickedDots = this.getClickedDots()
-        
-        clickedDots.forEach(dot => {
+        if (clickedDots.length > 0) {
             this.xAxis.selectAll('text')
-                .filter((d, i) => i === dot.indexDot)
-                .classed('clicked', true)
+                .classed('opacityLess', true)
+
+            clickedDots.forEach(dot => {
+                this.xAxis.selectAll('text')
+                    .filter((d, i) => i === dot.indexDot)
+                    .classed('opacityLess', false)
 
                 // .style("fill-opacity", opacity)
                 // .style("stroke-opacity", opacity)
-        })  
+            })
+        }
     }
 
     private removeHighlightAxisX() {
         const opacity: number = this.barChartSettings.generalView.opacity / 100;
-        console.log(this.barChartSettings.generalView.opacity);
-        
+
         this.xAxis
             .selectAll('text')
-            .classed('clicked', false)
-            // .style("fill-opacity", opacity)
-            // .style("stroke-opacity", opacity);
+            .classed('opacityLess', false)
+        // .style("fill-opacity", opacity)
+        // .style("stroke-opacity", opacity);
     }
 
     private getClickedDots() {
@@ -576,7 +582,7 @@ export class BarChart implements IVisual {
         let dots = g.selectAll(".dot")
             .data(data.data)
             .enter().append("circle")
-            .classed('clicked', d => d.isClicked)
+            .classed('opacityLess', d => d.isClicked)
             .style("stroke", "white")
             .style("stroke-width", 3.5)
             .style("fill", data.color)
@@ -603,7 +609,7 @@ export class BarChart implements IVisual {
             .selectAll('circle')
             .filter((d, i) => i === dotOver.indexDot)
 
-        let widthTooltip =  Math.max(settings.tooltip.fontSizeValue, settings.tooltip.fontSizeLabel) * 5  //xScale.bandwidth() * 2
+        let widthTooltip = Math.max(settings.tooltip.fontSizeValue, settings.tooltip.fontSizeLabel) * 5  //xScale.bandwidth() * 2
         let heightTooltip = Math.max(settings.tooltip.fontSizeValue, settings.tooltip.fontSizeLabel) * 3
         let coordinateX = parseInt(findDot.attr('cx')) - widthTooltip / 2
         let coordinateY = parseInt(findDot.attr('cy')) - heightTooltip - fontSizeAxisY * 1.5
